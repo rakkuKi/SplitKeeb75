@@ -2,11 +2,14 @@
 
 ![splitkeeb75](imgur.com image replace me!)
 
-*A short description of the keyboard/project*
+*My first keyboard it's just a plain halleffect split keyboard that I'm using as an excuse to actively trying to learn soldering and learn a bit of C.*
+I'll try my best to implement some features like rapid trigger but I won't promise it'll be as good as wootings and other brands.
 
-* Keyboard Maintainer: [Luck](https://github.com/rakkuKi)
-* Hardware Supported: *The PCBs, controllers supported*
-* Hardware Availability: *Links to where you can find this hardware*
+* Keyboard Maintainer: [rakkuKi](https://github.com/rakkuKi)
+* Hardware Supported: *rp2040zero, 49E hall effect sensor and ADG732SUZ mux*
+* Hardware Availability: *all on aliexpress and amazon I kinda don't have the specific links*
+
+the things below are all TO DO later if I don't forgot them
 
 Make example for this keyboard (after setting up your build environment):
 
