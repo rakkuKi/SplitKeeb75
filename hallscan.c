@@ -30,6 +30,7 @@ static bool key_pressed[MAX_KEYS];
 static uint32_t key_timer[MAX_KEYS];
 //static uint32_t last_debug_time = 0;
 static bool debug_mode = true;
+static bool last_state = false;
 
 
 
@@ -287,7 +288,7 @@ void calibrate_sensors(void) {
             // Lower = more sensitive, Higher = less sensitive (requires harder press)
             // 4% is a good balance: responsive without noise/crosstalk false triggers
             //const uint8_t DEFAULT_SENSITIVITY_PERCENT = 4;
-            const uint8_t DEFAULT_SENSITIVITY_PERCENT = 30; //rn used to set threshold value between 1-180
+            const uint8_t DEFAULT_SENSITIVITY_PERCENT = 20; //rn used to set threshold value between 1-180
             key_sensitivity_percent[key_idx] = DEFAULT_SENSITIVITY_PERCENT;
 
             // Keep an absolute fallback threshold (lower bound) for compatibility
@@ -419,15 +420,17 @@ bool left_side_scan(matrix_row_t current_matrix[]){
                 // Compute lower and upper bounds based on percent deviation
                 // uint32_t lower = ((uint32_t)base * (100 - sens)) / 100;
                 // uint32_t upper = ((uint32_t)base * (100 + sens)) / 100;
-                int16_t prev_lower = base - adc_values[key_idx];
                 int16_t lower = base - adc_val;
-                int16_t prev_upper = -prev_lower;
                 int16_t upper = -lower;
-                if (prev_lower < 1) prev_lower = 0;
                 if (lower < 1) lower = 0;
-                if (prev_upper < 1) prev_upper = 0;
                 if (upper < 1) upper = 0;
+
+                //int16_t prev_lower = base - adc_values[key_idx];
+                //int16_t prev_upper = -prev_lower;
+                //if (prev_lower < 1) prev_lower = 0;
+                //if (prev_upper < 1) prev_upper = 0;
                 
+                int16_t key_direction = adc_val - adc_values[key_idx];
                 
                 // Safety clamps
                 //if (lower < 1) lower = 1;
@@ -435,8 +438,11 @@ bool left_side_scan(matrix_row_t current_matrix[]){
                 // Press if value deviates below lower OR above upper
                 should_press = (lower > sens) || (upper > sens);
                 //Rapid trigger (at least my take on it)
-                bool going_down = (prev_lower < lower);
-                should_press &= going_down? going_down : key_pressed[key_idx] && (prev_lower <= lower);
+                bool going_down = (key_direction <= 2);
+                bool going_up = (key_direction >= 2);
+                if(going_down)last_state = true;
+                else if (going_up)last_state = false;
+                should_press &= last_state;
 
                 
             } else {
