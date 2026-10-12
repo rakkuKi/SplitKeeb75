@@ -31,7 +31,7 @@ static uint32_t key_timer[MAX_KEYS];
 //static uint32_t last_debug_time = 0;
 static bool debug_mode = true;
 static bool last_state = false;
-
+static bool rapid_trigger = true;
 
 
 // ========================================
@@ -86,7 +86,7 @@ static void select_lmux_channel(uint8_t channel) {
     writePin(MUX2_SEL2, (channel & 0x04) ? 1 : 0);
     writePin(MUX2_SEL3, (channel & 0x08) ? 1 : 0);
     writePin(MUX2_SEL4, (channel & 0x10) ? 1 : 0);
-    
+
     writePinLow(LMUX_WR);
     wait_us(5); // short pulse to ensure latch
     writePinHigh(LMUX_WR);
@@ -119,18 +119,18 @@ void matrix_init_custom(void) {
         setPinOutput(MUX1_SEL2);
         setPinOutput(MUX1_SEL3);
         setPinOutput(MUX1_SEL4);
-        
+
         setPinOutput(MUX2_SEL0);
         setPinOutput(MUX2_SEL1);
         setPinOutput(MUX2_SEL2);
         setPinOutput(MUX2_SEL3);
         setPinOutput(MUX2_SEL4);
-        
+
         #ifdef LMUX_WR
         setPinOutput(LMUX_WR);
         writePinHigh(LMUX_WR);
         #endif
-        
+
         #ifdef MUX_CS1
         setPinOutput(MUX_CS1);
         writePinHigh(MUX_CS1);
@@ -146,13 +146,13 @@ void matrix_init_custom(void) {
         setPinOutput(MUX3_SEL2);
         setPinOutput(MUX3_SEL3);
         setPinOutput(MUX3_SEL4);
-        
+
         setPinOutput(MUX4_SEL0);
         setPinOutput(MUX4_SEL1);
         setPinOutput(MUX4_SEL2);
         setPinOutput(MUX4_SEL3);
         setPinOutput(MUX4_SEL4);
-        
+
         #ifdef RMUX_WR
             setPinOutput(RMUX_WR);
             writePinHigh(RMUX_WR);
@@ -186,13 +186,13 @@ void calibrate_sensors(void) {
 
     pin_t radc_pins[2] = {MUX3_ADC, MUX4_ADC};
     const mux32_ref_t* rmux_tables[2] = {mux3_channels, mux4_channels};
-    
-    
+
+
     // Perform multiple reads per key and average them for stability
     //const uint8_t CALIBRATION_SAMPLES = 5;
     uint32_t sample_accumulator[MAX_KEYS] = {0};
     uint8_t sample_count[MAX_KEYS] = {0};
-    
+
     // Collect samples
     for (uint8_t sample = 0; sample < CALIBRATION_SAMPLES; sample++) {
         for (uint8_t mux_idx = 0; mux_idx < 2; mux_idx++) {
@@ -223,7 +223,7 @@ void calibrate_sensors(void) {
                     wait_us(100);
 
                 uint16_t adc_val = analogReadPin(is_keyboard_left()? ladc_pins[mux_idx] : radc_pins[mux_idx]);
-                
+
                 // Filter out anomalous high values
                 const uint16_t ADC_MAX_VALID = 800;
                 if (adc_val > ADC_MAX_VALID) {
@@ -242,7 +242,7 @@ void calibrate_sensors(void) {
 
                 //uint16_t key_idx = (matrix_row * MATRIX_COLS) + matrix_col;
                 uint16_t key_idx = (sensor - 1);
-                
+
                 if (key_idx >= MAX_KEYS) continue;
 
                 // Accumulate valid readings only (skip obvious disconnects)
@@ -251,7 +251,7 @@ void calibrate_sensors(void) {
                     sample_count[key_idx]++;
                 }
             }
-            
+
 
             // Release CS
             if(is_keyboard_left()){
@@ -276,13 +276,13 @@ void calibrate_sensors(void) {
         }
         wait_ms(10); // Small delay between calibration samples
     }
-    
+
     // Calculate baseline and threshold for each key
     for (uint8_t key_idx = 0; key_idx < MAX_KEYS; key_idx++) {
         if (sample_count[key_idx] > 0) {
             // Calculate average baseline
             key_baseline[key_idx] = sample_accumulator[key_idx] / sample_count[key_idx];
-            
+
             // Initialize sensitivity percent to a default value (deviation percent)
             // e.g., default 4% -> trigger when value deviates +/-4% from baseline
             // Lower = more sensitive, Higher = less sensitive (requires harder press)
@@ -293,7 +293,7 @@ void calibrate_sensors(void) {
 
             // Keep an absolute fallback threshold (lower bound) for compatibility
             key_threshold[key_idx] = (key_baseline[key_idx] * CALIBRATION_THRESHOLD_PERCENT) / 100;
-            
+
             // Safety clamps: ensure threshold is reasonable
             if (key_threshold[key_idx] < 100) {
                 key_threshold[key_idx] = 100; // Minimum threshold
@@ -307,7 +307,7 @@ void calibrate_sensors(void) {
             key_threshold[key_idx] = SENSOR_THRESHOLD;
         }
     }
-    
+
     calibration_complete = true;
 }
 
@@ -332,7 +332,7 @@ void set_key_threshold(uint16_t key_idx, uint8_t percent) {
 }
 
 bool left_side_scan(matrix_row_t current_matrix[]){
-    
+
     bool changed = false;
     uint32_t now = timer_read32();
 
@@ -351,7 +351,7 @@ bool left_side_scan(matrix_row_t current_matrix[]){
     // ADC pins and mapping table
         pin_t ladc_pins[2] = {MUX1_ADC, MUX2_ADC};
         const mux32_ref_t* lmux_tables[2] = {mux1_channels, mux2_channels};
-    
+
 
     const uint16_t ADC_GND_THRESHOLD = 100; // skip obviously unconnected channels
 
@@ -364,15 +364,15 @@ bool left_side_scan(matrix_row_t current_matrix[]){
         #ifdef MUX_CS2
         if (mux_idx == 1) { writePinLow(MUX_CS2); } else { writePinHigh(MUX_CS2); }
         #endif
-        
+
         for (uint8_t ch = 0; ch < 32; ch++) {
             select_lmux_channel(ch);
             wait_us(10);  // Increased delay without filter caps to allow signal settling
 
             uint16_t adc_val = analogReadPin(ladc_pins[mux_idx]);
 
-            
-            
+
+
             // Filter out anomalous high values (crosstalk without filter caps)
             // Valid Hall sensor range: 0 (pressed) to ~512 (released)
             // Values above 800 are likely crosstalk
@@ -380,43 +380,43 @@ bool left_side_scan(matrix_row_t current_matrix[]){
             if (adc_val > ADC_MAX_VALID) {
                 adc_val = 4095;  // Treat as invalid/unpressed
             }
-            
+
             const mux32_ref_t* key_mapping = &lmux_tables[mux_idx][ch];
-            
+
             if (!key_mapping) continue;
-            
+
             // If channel is unmapped and reads near GND, skip
             if (key_mapping->sensor == 0) {
                 if (adc_val <= ADC_GND_THRESHOLD) continue;
                 else continue;
             }
-            
+
             uint16_t sensor = key_mapping->sensor;
             if (sensor == 0) continue;
-            
+
             // Map sensor to matrix position
             uint16_t key_idx = (sensor - 1);
             uint8_t matrix_row = key_idx / MATRIX_COLS;
             uint8_t matrix_col = key_idx % MATRIX_COLS;
-            
-            
+
+
             if (matrix_row >= MATRIX_ROWS || matrix_col >= MATRIX_COLS) continue;
-            
+
             //uint16_t key_idx = (matrix_row * MATRIX_COLS) + matrix_col;
             if (key_idx >= MAX_KEYS) continue;
-            
-            
-            
-            
+
+
+
+
             // Use dynamic per-key sensitivity if calibration is complete
             bool should_press = false;
 
-            
+
             if (calibration_complete) {
                 uint16_t base = key_baseline[key_idx] ? key_baseline[key_idx] : 512;
                 //uint8_t sens = key_sensitivity_percent[key_idx] ? key_sensitivity_percent[key_idx] : 10; // percent
                 uint8_t sens = key_sensitivity_percent[key_idx] ? key_sensitivity_percent[key_idx] : 20; // value where it should press range from 1 - 180
-                
+
                 // Compute lower and upper bounds based on percent deviation
                 // uint32_t lower = ((uint32_t)base * (100 - sens)) / 100;
                 // uint32_t upper = ((uint32_t)base * (100 + sens)) / 100;
@@ -429,28 +429,29 @@ bool left_side_scan(matrix_row_t current_matrix[]){
                 //int16_t prev_upper = -prev_lower;
                 //if (prev_lower < 1) prev_lower = 0;
                 //if (prev_upper < 1) prev_upper = 0;
-                
+
                 int16_t key_direction = adc_val - adc_values[key_idx];
-                
+
                 // Safety clamps
                 //if (lower < 1) lower = 1;
-                
+
                 // Press if value deviates below lower OR above upper
                 should_press = (lower > sens) || (upper > sens);
                 //Rapid trigger (at least my take on it)
-                bool going_down = (key_direction <= 2);
-                bool going_up = (key_direction >= 2);
-                if(going_down)last_state = true;
-                else if (going_up)last_state = false;
-                should_press &= last_state;
+                if(rapid_trigger){
+                    bool going_down = (key_direction <= 2);
+                    bool going_up = (key_direction >= 2);
+                    if(going_down)last_state = true;
+                    else if (going_up)last_state = false;
+                    should_press &= last_state;
+                }
 
-                
             } else {
                 // Fallback to legacy absolute threshold
                 uint16_t threshold = key_threshold[key_idx] ? key_threshold[key_idx] : SENSOR_THRESHOLD;
                 should_press = (adc_val < threshold);
             }
-            
+
             // Store ADC value for debug display (show filtered value)
             if (key_idx < KEY_COUNT) {
                 adc_values[key_idx] = adc_val;
@@ -470,21 +471,21 @@ bool left_side_scan(matrix_row_t current_matrix[]){
         }
 
         // Release CS for this MUX (keep others disabled)
-            
+
                 #ifdef MUX_CS1
                     writePinHigh(MUX_CS1);
                 #endif
                 #ifdef MUX_CS2
                     writePinHigh(MUX_CS2);
                 #endif
-            
+
     }
     return changed;
 }
 
 
 bool right_side_scan(matrix_row_t current_matrix[]){
-    
+
     bool changed = false;
     uint32_t now = timer_read32();
 
@@ -499,7 +500,7 @@ bool right_side_scan(matrix_row_t current_matrix[]){
     for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
         current_matrix[row] = 0;
     }
-    
+
     // Clear ADC values array
     for (uint8_t i = 0; i < MAX_KEYS; i++) {
         adc_values[i] = 0;
@@ -508,14 +509,14 @@ bool right_side_scan(matrix_row_t current_matrix[]){
     // ADC pins and mapping table
         pin_t radc_pins[2] = {MUX3_ADC, MUX4_ADC};
         const mux32_ref_t* rmux_tables[2] = {mux3_channels, mux4_channels};
-    
+
 
     const uint16_t ADC_GND_THRESHOLD = 100; // skip obviously unconnected channels
 
     // Scan each mux and channel
     for (uint8_t mux_idx = 0; mux_idx < 2; mux_idx++) {
         // Select appropriate CS
-        
+
         #ifdef MUX_CS3
                 if (mux_idx == 0) { writePinLow(MUX_CS3); } else { writePinHigh(MUX_CS3); }
         #endif
@@ -529,7 +530,7 @@ bool right_side_scan(matrix_row_t current_matrix[]){
             wait_us(10);  // Increased delay without filter caps to allow signal settling
 
             uint16_t adc_val = analogReadPin(radc_pins[mux_idx]);
-            
+
             // Filter out anomalous high values (crosstalk without filter caps)
             // Valid Hall sensor range: 0 (pressed) to ~512 (released)
             // Values above 800 are likely crosstalk
@@ -539,7 +540,7 @@ bool right_side_scan(matrix_row_t current_matrix[]){
             }
 
             const mux32_ref_t* key_mapping = &rmux_tables[mux_idx][ch];
-            
+
             if (!key_mapping) continue;
 
             // If channel is unmapped and reads near GND, skip
@@ -560,11 +561,7 @@ bool right_side_scan(matrix_row_t current_matrix[]){
             //uint16_t key_idx = (matrix_row * MATRIX_COLS) + matrix_col;
             uint16_t key_idx = (sensor - 1);
             if (key_idx >= MAX_KEYS) continue;
-            
-            // Store ADC value for debug display (show filtered value)
-            if (key_idx < KEY_COUNT) {
-                adc_values[key_idx] = adc_val;
-            }
+
 
             // Use dynamic per-key sensitivity if calibration is complete
             bool should_press = false;
@@ -576,21 +573,32 @@ bool right_side_scan(matrix_row_t current_matrix[]){
                 // Compute lower and upper bounds based on percent deviation
                 // uint32_t lower = ((uint32_t)base * (100 - sens)) / 100;
                 // uint32_t upper = ((uint32_t)base * (100 + sens)) / 100;
-                uint16_t lower = base - adc_val;
-                if (lower > 65500) lower = 0;
-                uint16_t upper = adc_val - base ;
-                if (upper > 65500) upper = 0;
+                int16_t lower = base - adc_val;
+                int16_t upper = -lower;
+                if (lower < 1) lower = 0;
+                if (upper > 1) upper = 0;
 
-                // Safety clamps
-                //if (lower < 1) lower = 1;
-                //if (upper < 1) upper = 4095;
+                int16_t key_direction = adc_val - adc_values[key_idx];
 
                 // Press if value deviates below lower OR above upper
                 should_press = (lower > sens) || (upper > sens);
+                //Rapid trigger (at least my take on it)
+                if(rapid_trigger){
+                    bool going_down = (key_direction <= 2);
+                    bool going_up = (key_direction >= 2);
+                    if(going_down)last_state = true;
+                    else if (going_up)last_state = false;
+                    should_press &= last_state;
+                }
             } else {
                 // Fallback to legacy absolute threshold
                 uint16_t threshold = key_threshold[key_idx] ? key_threshold[key_idx] : SENSOR_THRESHOLD;
                 should_press = (adc_val < threshold);
+            }
+
+            // Store ADC value for debug display (show filtered value)
+            if (key_idx < KEY_COUNT) {
+                adc_values[key_idx] = adc_val;
             }
 
             // Debounce: only change state if debounce time elapsed
@@ -608,14 +616,14 @@ bool right_side_scan(matrix_row_t current_matrix[]){
         }
 
         // Release CS for this MUX (keep others disabled)
-        
+
             #ifdef MUX_CS3
                 writePinHigh(MUX_CS3);
             #endif
             #ifdef MUX_CS4
                 writePinHigh(MUX_CS4);
             #endif
-        
+
     }
     return changed;
 }
@@ -624,11 +632,11 @@ bool right_side_scan(matrix_row_t current_matrix[]){
 bool matrix_scan_custom(matrix_row_t current_matrix[]) {
     bool changed = is_keyboard_left()? left_side_scan(current_matrix) : right_side_scan(current_matrix);
     uint32_t now = timer_read32();
-    
+
     if(debug_mode && timer_elapsed32(last_adc_print_time) > ADC_PRINT_INTERVAL_MS){
         last_adc_print_time = now;
         for (uint8_t i = 0; i<MAX_KEYS; i++) {
-            
+
             if(i % MATRIX_COLS == 0){
                 uprint("\n");
             }
@@ -665,7 +673,7 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
     for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
         current_matrix[row] = 0;
     }
-    
+
     // Clear ADC values array
     for (uint8_t i = 0; i < MAX_KEYS; i++) {
         adc_values[i] = 0;
@@ -676,7 +684,7 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
         const mux32_ref_t* lmux_tables[2] = {mux1_channels, mux2_channels};
         pin_t radc_pins[2] = {MUX3_ADC, MUX4_ADC};
         const mux32_ref_t* rmux_tables[2] = {mux3_channels, mux4_channels};
-    
+
 
     const uint16_t ADC_GND_THRESHOLD = 100; // skip obviously unconnected channels
 
@@ -710,7 +718,7 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
             wait_us(100);  // Increased delay without filter caps to allow signal settling
 
             uint16_t adc_val = analogReadPin(is_keyboard_left()? ladc_pins[mux_idx] : radc_pins[mux_idx]);
-            
+
             // Filter out anomalous high values (crosstalk without filter caps)
             // Valid Hall sensor range: 0 (pressed) to ~512 (released)
             // Values above 800 are likely crosstalk
@@ -720,7 +728,7 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
             }
 
             const mux32_ref_t* key_mapping = is_keyboard_left()? &lmux_tables[mux_idx][ch] : &rmux_tables[mux_idx][ch];
-            
+
             if (!key_mapping) continue;
 
             // If channel is unmapped and reads near GND, skip
@@ -741,7 +749,7 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
             //uint16_t key_idx = (matrix_row * MATRIX_COLS) + matrix_col;
             uint16_t key_idx = (sensor - 1);
             if (key_idx >= MAX_KEYS) continue;
-            
+
             // Store ADC value for debug display (show filtered value)
             if (key_idx < KEY_COUNT) {
                 adc_values[key_idx] = adc_val;
@@ -800,16 +808,16 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
                 #endif
             }
     }
-    
-    
+
+
     if(debug_mode && timer_elapsed32(last_adc_print_time) > ADC_PRINT_INTERVAL_MS){
         last_adc_print_time = now;
         for (uint8_t i = 0; i<MAX_KEYS; i++) {
-            
+
             if(i % MATRIX_COLS == 0){
                 uprint("\n");
             }
-            
+
             uprintf("|%02u,%3u,%b| ", i, adc_values[i], key_pressed[i]);
         }
         uprint("\n");
